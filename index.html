@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <meta name="theme-color" content="#111111">
+
+  <title>1×1 Trainer</title>
+
+  <style>
+    * {
+      box-sizing: border-box;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    html, body {
+      margin: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: #111;
+      color: white;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    body {
+      min-height: 100dvh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      touch-action: manipulation;
+    }
+
+    #score {
+      position: fixed;
+      top: max(18px, env(safe-area-inset-top));
+      right: 22px;
+      font-size: clamp(18px, 3vw, 26px);
+      font-weight: 600;
+      color: #888;
+    }
+
+    #game {
+      width: min(90vw, 700px);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: clamp(35px, 7vh, 70px);
+    }
+
+    #calculation {
+      min-height: 1.2em;
+      font-size: clamp(64px, 14vw, 130px);
+      line-height: 1;
+      font-weight: 700;
+      letter-spacing: -0.04em;
+      text-align: center;
+    }
+
+    button {
+      border: none;
+      font: inherit;
+      cursor: pointer;
+      touch-action: manipulation;
+    }
+
+    #startButton {
+      padding: 22px 55px;
+      border-radius: 18px;
+      background: white;
+      color: #111;
+      font-size: clamp(25px, 5vw, 38px);
+      font-weight: 700;
+    }
+
+    #answerButton {
+      display: none;
+      width: min(65vw, 340px);
+      height: clamp(100px, 18vh, 150px);
+      border-radius: 28px;
+      background: #25c45a;
+      box-shadow: 0 8px 0 #14883a;
+    }
+
+    #answerButton:active {
+      transform: translateY(5px);
+      box-shadow: 0 3px 0 #14883a;
+    }
+
+    #result {
+      position: fixed;
+      inset: 0;
+      display: none;
+      justify-content: center;
+      align-items: center;
+      pointer-events: none;
+
+      font-size: clamp(100px, 25vw, 230px);
+      font-weight: 800;
+      background: #111;
+      color: white;
+    }
+  </style>
+</head>
+
+<body>
+
+  <div id="score">0</div>
+
+  <main id="game">
+    <div id="calculation"></div>
+    <button id="startButton">Start</button>
+    <button id="answerButton" aria-label="Ergebnis gewusst"></button>
+  </main>
+
+  <div id="result"></div>
+
+<script>
+  const scoreElement = document.getElementById("score");
+  const calculation = document.getElementById("calculation");
+  const startButton = document.getElementById("startButton");
+  const answerButton = document.getElementById("answerButton");
+  const resultElement = document.getElementById("result");
+
+  let score = 0;
+  let timer = null;
+  let currentResult = null;
+  let running = false;
+
+  // Schwierige Reihen sind absichtlich häufiger vertreten.
+  const weightedNumbers = [
+    2, 2,
+    3, 3, 3,
+    4, 4, 4,
+    5, 5,
+    6, 6, 6, 6, 6,
+    7, 7, 7, 7, 7, 7,
+    8, 8, 8, 8, 8, 8,
+    9, 9, 9, 9, 9, 9,
+    10, 10
+  ];
+
+  function randomWeightedNumber() {
+    return weightedNumbers[
+      Math.floor(Math.random() * weightedNumbers.length)
+    ];
+  }
+
+  function newCalculation() {
+    const a = randomWeightedNumber();
+    const b = Math.floor(Math.random() * 9) + 2; // 2–10
+
+    currentResult = a * b;
+    calculation.textContent = `${a} × ${b}`;
+  }
+
+  function startRound() {
+    running = true;
+
+    startButton.style.display = "none";
+    resultElement.style.display = "none";
+
+    newCalculation();
+
+    answerButton.style.display = "block";
+
+    timer = setTimeout(timeUp, 3000);
+  }
+
+  function success() {
+    if (!running) return;
+
+    running = false;
+    clearTimeout(timer);
+
+    score++;
+    scoreElement.textContent = score;
+
+    playUpTone();
+
+    calculation.textContent = "";
+    answerButton.style.display = "none";
+
+    // Kleine Pause, damit der Erfolgston wahrgenommen wird.
+    setTimeout(showStart, 450);
+  }
+
+  function timeUp() {
+    if (!running) return;
+
+    running = false;
+    answerButton.style.display = "none";
+    calculation.textContent = "";
+
+    playDownTone();
+
+    resultElement.textContent = currentResult;
+    resultElement.style.display = "flex";
+
+    // Ergebnis kurz sichtbar lassen
+    setTimeout(() => {
+      resultElement.style.display = "none";
+      showStart();
+    }, 1300);
+  }
+
+  function showStart() {
+    calculation.textContent = "";
+    startButton.style.display = "block";
+  }
+
+  // Töne werden mit Web Audio erzeugt:
+  // keine Sounddateien nötig.
+
+  function playTone(startFrequency, endFrequency, duration) {
+    const AudioContext =
+      window.AudioContext || window.webkitAudioContext;
+
+    const ctx = new AudioContext();
+    const oscillator = ctx.createOscillator();
+    const gain = ctx.createGain();
+
+    oscillator.type = "sine";
+
+    oscillator.frequency.setValueAtTime(
+      startFrequency,
+      ctx.currentTime
+    );
+
+    oscillator.frequency.exponentialRampToValueAtTime(
+      endFrequency,
+      ctx.currentTime + duration
+    );
+
+    gain.gain.setValueAtTime(0.25, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(
+      0.001,
+      ctx.currentTime + duration
+    );
+
+    oscillator.connect(gain);
+    gain.connect(ctx.destination);
+
+    oscillator.start();
+    oscillator.stop(ctx.currentTime + duration);
+  }
+
+  function playUpTone() {
+    playTone(420, 850, 0.22);
+  }
+
+  function playDownTone() {
+    playTone(500, 180, 0.35);
+  }
+
+  startButton.addEventListener("click", startRound);
+  answerButton.addEventListener("pointerdown", success);
+</script>
+
+</body>
+</html>
